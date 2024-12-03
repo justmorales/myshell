@@ -1,9 +1,10 @@
-echo --- REDIRECT FUNCTIONALITY TESTING ---
+echo --- REDIRECT TESTS ---
+echo
 cd test_cases
 pwd
-cd < wc_test.txt
+cd < redir_test.txt
 pwd
-echo directory should have changed to /myshell
+echo Directory should have changed to /myshell
 echo Hello World! > output.txt
 echo output.txt file in /test_cases should contain only "Hello World!" 
 echo < wc_test.txt > output.txt

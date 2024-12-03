@@ -1,12 +1,16 @@
-echo --- PIPE FUNCTIONALITY TESTS ---
+echo --- PIPE TESTS ---
+echo
 cd test_cases
-echo creating create1.txt and create2.txt using pipe functions...
-touch create1.txt | touch create2.txt
-echo removing create1.txt and create2.txt...
+echo Creating create1.txt and create2.txt using pipe functions
+touch create1.txt | touch create2.txt   
+echo Removing create1.txt and create2.txt
 rm create1.txt | rm create2.txt
-echo creating files again...
+echo Creating files again...
 touch create1.txt | touch create2.txt
 cd ..
-ls | wc
-ls | grep test
+echo
+echo All lines in all .sh files which contain "echo" should output
+echo
+ls *.sh | grep echo
+echo
 exit

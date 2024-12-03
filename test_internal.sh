@@ -1,17 +1,22 @@
 echo --- INTERNAL COMMAND TESTS ---
+echo
+echo Directory should change from /myshell to /test_cases
 pwd
 cd test_cases
 pwd
-echo directory should have changed successfully from myshell to myshell/test_cases...
+echo
+echo Should output 2 file names
 ls c*.txt
-echo should print out 2 file names...
+echo
+echo Should output create1.txt
 ls create1.txt
-echo should only print create1.txt...
+echo
 cd ..
+echo Going back to myshell directory
 pwd
-echo going back to myshell directory...
-cd ..
+echo
+echo Should output paths for echo and cat
 which echo
 which cat
-echo should print out locations for echo and cat...
+echo
 exit
