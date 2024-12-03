@@ -21,20 +21,70 @@ typedef struct {
     int argc;
 } command;
 
+char** read_file(char* file) {
+    char buf[BUFSIZE];
+    char* line = malloc(sizeof(char*)*BUFSIZE);
+    char** lines = malloc(sizeof(char*)*BUFSIZE);
+
+    int pos = 0;
+    int bytes = 0;
+    int line_index = 0;
+
+    int fd = open(file, O_RDONLY);
+
+    if (!fd) {
+        perror("Error opening input file");
+        return NULL;
+    }
+
+    while ((bytes = read(fd, buf, BUFSIZE)) > 0) {
+        for (int i = 0; i <= bytes; i++) {
+            if (buf[i] == '\n' || i == bytes) {
+                line[pos] == '\0';
+                if (DEBUG) printf("line %d: %s\n", line_index, line);
+                lines[line_index] = strdup(line);
+                line_index++;
+                pos = 0;
+                // Reset line to 0s
+                memset(line,0,strlen(line));
+            } else {
+                if (DEBUG) printf("line_index: %d\n", line_index);
+                if (DEBUG) printf("\tpos: %d\n", pos);
+                if (DEBUG) printf("\ti: %d\n", i);
+                if (DEBUG) printf("\t\tchar: %c\n", buf[i]);
+                line[pos] = buf[i];
+                pos++;
+            }
+        }
+    }
+
+    return lines;
+}
+
 char* read_line() {
     char buf[BUFSIZE];
+    int w_index = 0;    // index in the current word
     int pos = 0;
+    
+    char* line = malloc(sizeof(char)*BUFSIZE);
 
     while (read(STDIN_FILENO, &buf[pos], 1) > 0) {
         // Check for newline
-        if (buf[pos] == '\n') break;
+        if (buf[pos] == '\n') {
+            if (w_index > 1) {
+                line[w_index] = '\0';
+                w_index = 0;
+                return line;
+            }
+        } else {
+            line[w_index] = buf[pos];
+            w_index++;
+        }
         pos++;
     }
-    // Null-terminate at end of string
-    buf[pos] = '\0';
 
-    char* line = malloc(sizeof(char) * (pos + 1));
-    strcpy(line, buf);
+    // Null-terminate at end of string
+    line[pos] = '\0';
 
     return line;
 }
@@ -44,12 +94,12 @@ command parse_cmd(char* line) {
     cmd.args = malloc(BUFSIZE * sizeof(char*));
     cmd.argc = 0;
 
-    char* token = strtok(line, " ");
+    char* token = strtok(line, " \n");
 
     while (token) {
         cmd.args[cmd.argc] = strdup(token);
         cmd.argc++;
-        token = strtok(NULL, " ");
+        token = strtok(NULL, " \n");
     }
 
     // Args array should terminate with null
@@ -75,6 +125,7 @@ char* get_path(char* string) {
 void cd_cmd();
 void pwd_cmd();
 void which_cmd();
+void exit_cmd();
 void external_cmd();
 void eval_cmd();
 
@@ -129,22 +180,38 @@ void which_cmd(char** args, int argc) {
     free(path);
 }
 
+void exit_cmd(char** args, int argc) {
+    if (argc > 1) {
+        printf("exiting with args:");
+        for (int i = 1; i < argc; i++) {
+            printf(" %s", args[i]);
+        }
+        printf("...");
+    } else printf("exiting...");
+    QUIT = 1;
+}
+
 void external_cmd(char* cmd, char** args) {
     char* path = get_path(cmd);
     if (!path) {
         fprintf(stderr, "Command not found: %s\n", cmd);
         return;
     }
+    
+    int stat;
     pid_t pid = fork();
     if (pid == 0) {
         execv(path, args);
         perror("execv");
         exit(EXIT_FAILURE);
     } else if (pid > 0) {
-        wait(NULL);
+        wait(&stat);
     } else {
         perror("fork");
     }
+
+    if (WIFEXITED(stat) && WSTOPSIG(stat) != 0)
+        printf("mysh: command failed with code %d\n", WSTOPSIG(stat));
     free(path);
 }
 
@@ -168,75 +235,44 @@ int check_rwp(char** args, int argc) {
     return 0;
 }
 
-void redirect_input(char** args, int argc) {
+void redirect_input(command* cmd) {
     int redirect_pos = -1;
 
-    // Locating < 
-    for (int i = 0; i < argc; i++) {
-        if (strcmp(args[i], "<") == 0) {
+    // Locate '<' in arguments
+    for (int i = 0; i < cmd->argc; i++) {
+        if (strcmp(cmd->args[i], "<") == 0) {
             redirect_pos = i;
             break;
         }
     }
 
-    if (redirect_pos == -1 || redirect_pos + 1 >= argc) {
+    if (redirect_pos == -1 || redirect_pos + 1 >= cmd->argc) {
         fprintf(stderr, "Error: Missing input file for redirection\n");
         return;
     }
+    
+    char* input_file = cmd->args[redirect_pos + 1];
 
-    // getting commmand and file
-    char* cmd = args[0];
-    char** cmd_args = malloc((redirect_pos + 1) * sizeof(char*));
-    for (int i = 0; i < argc; i++) {
-        cmd_args[i] = args[redirect_pos + i];
+    // Remove '<' and input file from original arguments
+    for (int i = 0; i < 2; i++) {
+        cmd->args[cmd->argc] = NULL;
+        cmd->argc--;
     }
 
-    char* input_file = args[redirect_pos + 1];
+    char* input = read_file(input_file)[0];
+    command temp = parse_cmd(input);
 
-    // reading file
-    FILE* file = fopen(input_file, "r");
-    if (!file) {
-        perror("Error opening input file");
-        free(cmd_args);
-        return;
+    // Read file contents and add to command arguments
+    for (int i = 0; i < temp.argc; i++) {
+        cmd->args[cmd->argc] = temp.args[i];
+        cmd->argc++;
     }
 
-    // Fork the process to execute the command
-    pid_t pid = fork();
-    if (pid == 0) {
-        // Child process
-        int fd = fileno(file);
-        if (fd < 0) {
-            perror("Error obtaining file descriptor");
-            fclose(file);
-            free(cmd_args);
-            exit(EXIT_FAILURE);
-        }
+    // Null-terminate the arguments array
+    cmd->args[cmd->argc] = NULL;
 
-        // Redirect STDIN to the file
-        if (dup2(fd, STDIN_FILENO) < 0) {
-            perror("Error duplicating file descriptor");
-            fclose(file);
-            free(cmd_args);
-            exit(EXIT_FAILURE);
-        }
-
-        fclose(file);
-
-        // Execute the command with the redirected input
-        execvp(args[0], cmd_args);
-        perror("Error executing command");
-        free(cmd_args);
-        exit(EXIT_FAILURE);
-    } else if (pid > 0) {
-        // Parent process
-        wait(NULL); // Wait for the child process to finish
-    } else {
-        perror("Error forking process");
-    }
-
-    fclose(file);
-    free(cmd_args);
+    // Execute the updated command
+    eval_cmd(*cmd);
 }
 
 void redirect_output(char** args, int argc) {
@@ -363,8 +399,9 @@ void eval_pipeline(command cmd) {
         // Child process
         close(fd[0]);
         dup2(fd[1], STDOUT_FILENO);
-        eval_cmd(lhs);
         close(fd[1]);
+
+        eval_cmd(lhs);
 
         exit(EXIT_SUCCESS);
     } else if (pid1 == -1) {
@@ -378,6 +415,7 @@ void eval_pipeline(command cmd) {
             // Child process
             close(fd[1]);
             dup2(fd[0], STDIN_FILENO);
+            close(fd[0]);
 
             char* input = read_line();
             command temp = parse_cmd(input);
@@ -385,16 +423,20 @@ void eval_pipeline(command cmd) {
             // Add piped args to command args
             for (int i = 0; i < temp.argc; i++) {
                 rhs.args[rhs.argc + i] = temp.args[i];
+                rhs.argc++;
             }
-
             eval_cmd(rhs);
-            close(fd[0]);
 
             free(input);
             for (int i = 0; i < rhs.argc; i++) {
                 free(rhs.args[i]);
             }
             free(rhs.args);
+
+            for (int i = 0; i < lhs.argc; i++) {
+                free(lhs.args[i]);
+            }
+            free(lhs.args);
 
             exit(EXIT_SUCCESS);
         } else if (pid2 == -1) {
@@ -404,18 +446,8 @@ void eval_pipeline(command cmd) {
             close(fd[0]);
             close(fd[1]);
 
-            waitpid(pid1, &lhs_status, WUNTRACED);
-            waitpid(pid2, &rhs_status, WUNTRACED);
-
-            for (int i = 0; i < lhs.argc; i++) {
-                free(lhs.args[i]);
-            }
-            free(lhs.args);
-
-            for (int i = 0; i < rhs.argc; i++) {
-                free(rhs.args[i]);
-            }
-            free(rhs.args);
+            waitpid(pid1, &lhs_status, 0);
+            waitpid(pid2, &rhs_status, 0);
         }
     }
 }
@@ -428,7 +460,7 @@ void eval_cmd(command cmd) {
     } else if (special == 1) {
         eval_wildcard(&cmd);
     } else if (special == 3) {
-        redirect_input(cmd.args, cmd.argc);
+        redirect_input(&cmd);
         return;
     } else if (special == 4) {
         redirect_output(cmd.args, cmd.argc);
@@ -442,8 +474,7 @@ void eval_cmd(command cmd) {
     } else if (!strcmp(cmd.args[0], "which")) {
         which_cmd(cmd.args, cmd.argc);
     } else if (!strcmp (cmd.args[0], "exit")) {
-        printf("exiting...\n");
-        QUIT = 1;
+        exit_cmd(cmd.args, cmd.argc);
     } else {
         external_cmd(cmd.args[0], cmd.args);
     }
@@ -459,13 +490,18 @@ int main(int argc, char* argv[]) {
     } else if (argc > 1) {
         // BATCH
         interactive = 0;
-        freopen(argv[1], "r", stdin);
     }
     
     // COMMAND LOOP
     while (!QUIT) {
         if (!interactive) {
-            printf("BATCH MODE");
+            char** input = read_file(argv[1]);
+            int i = 0;
+            while (input[i]) {
+                command cmd = parse_cmd(input[i]);
+                eval_cmd(cmd);
+                i++;
+            }
             break;
         } else {
             // Use fflush to force standard buffer to output to stdout immediately
@@ -474,7 +510,12 @@ int main(int argc, char* argv[]) {
         }
 
         char* input = read_line();
-        if (!input) break;
+        
+        // Check if input is path to program
+        if (input[0] == '/') {
+            printf("path to program\n");
+            continue;
+        }
 
         command cmd = parse_cmd(input);
         eval_cmd(cmd);
