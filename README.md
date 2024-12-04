@@ -19,6 +19,8 @@ will test if redirecting input and output work, it will cd into the test case fo
 will test for an edge case of running echo over and over
 
 how to compile
+MAKE TESTS
+will run all of the tests we have above
 to make an executable 
 MAKE
 to clean your executable and prep for making an executable
