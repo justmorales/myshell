@@ -6,6 +6,10 @@ Implentation of myshell used functions cd_cmd, pwd_cmd, which_cmd, external_cmd,
 
 Test Cases
 our test cases directory is to have some files to redirect input/output,pipe into and any other thing that deals with changing a file or taking in from or outputting to
+<<<<<<< HEAD
+=======
+
+>>>>>>> ed33ab6 (final)
 ./mysh test_internal.sh 
 will test the internal commands such as cd, pwd, which etc. echo, which is not an internal command is used to show which is being tested and also uses pwd to show that you cd is being used correctly
 
@@ -14,9 +18,6 @@ will test if piping works correctly, it will navigate into the test case folder,
 
 ./mysh test_redirect.sh
 will test if redirecting input and output work, it will cd into the test case folder and use echo to show what is happening, it will check what is happening in each file and show what is suppose to be in it
-
-./mysh edge_case.txt
-will test for an edge case of running echo over and over
 
 how to compile
 MAKE TESTS

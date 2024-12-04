@@ -1,12 +1,15 @@
 echo --- REDIRECT TESTS ---
 echo
-cd test_cases
-pwd
-cd < redir_test.txt
-pwd
-echo Directory should have changed to /myshell
+echo Printing "WELCOME TO REDIR_TEST.TXT" to redir_test.txt
+echo WELCOME TO THE REDIR_TEST.txt > redir_test.txt
+echo
+echo Printing contents of redir_test.txt
+echo < redir_test.txt
+echo
 echo Hello World! > output.txt
-echo output.txt file in /test_cases should contain only "Hello World!" 
-echo < wc_test.txt > output.txt
-echo check output.txt again to see if it contains lines of "test"
+echo output.txt file should contain only "Hello World!" 
+echo
+echo Clearing redir_test.txt
+echo > redir_test.txt
+echo
 exit

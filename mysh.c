@@ -286,27 +286,27 @@ int check_rwp(command* cmd) {
 }
 
 // Process input redirection
-void redirect_input(command cmd) {
+void redirect_input(command* cmd) {
     int redirect_pos = -1;
     char* input_file;
 
     // Get location of '>' in args
-    for (int i = 0; i < cmd.argc; i++) {
-        if (strcmp(cmd.args[i], "<") == 0) {
-            input_file = strdup(cmd.args[i + 1]);
+    for (int i = 0; i < cmd->argc; i++) {
+        if (strcmp(cmd->args[i], "<") == 0) {
+            input_file = strdup(cmd->args[i + 1]);
             redirect_pos = i;
 
             // Remove output file from args and symbol
-            cmd.args[i + 1] = NULL;
-            cmd.args[i] = NULL;
-            cmd.argc = cmd.argc - 2;
-        } else if (strchr(cmd.args[i], '<')) {
+            cmd->args[i + 1] = NULL;
+            cmd->args[i] = NULL;
+            cmd->argc = cmd->argc - 2;
+        } else if (strchr(cmd->args[i], '<')) {
             // strtok() modifies original input
-            char* temp = strdup(cmd.args[i]);
+            char* temp = strdup(cmd->args[i]);
             char* token = strtok(temp, "<");
 
             // Simplify expression to first argument
-            cmd.args[i] = strdup(token);
+            cmd->args[i] = strdup(token);
 
             // Get 2nd argument in redirect expression
             token = strtok(NULL, "<");
@@ -319,8 +319,6 @@ void redirect_input(command cmd) {
             free(temp);
         }
     }
-
-    printf("input_file: %s\n", input_file);
 
     pid_t pid = fork();
     int status;
@@ -348,22 +346,15 @@ void redirect_input(command cmd) {
             // Add redirected args to command args
             for (int j = 0; j < temp.argc; j++) {
                 // free before allocating new
-                free(cmd.args[cmd.argc + j]);
-                printf("temp arg: %s\n", temp.args[j]);
-                cmd.args[cmd.argc + j] = strdup(temp.args[j]);
-                free(temp.args[j]);
+                cmd->args[cmd->argc + j] = strdup(temp.args[j]);
             }
-            cmd.argc = cmd.argc + temp.argc;
+            cmd->argc = cmd->argc + temp.argc;
             
             free(temp.args);
             free(input[i]);
         }
 
-        for (int i = 0; i < cmd.argc; i++) {
-            printf("arg: %s\n", cmd.args[i]);
-        }
-
-        eval_cmd(cmd);
+        eval_cmd(*cmd);
         exit(EXIT_SUCCESS);
     }
 
@@ -592,20 +583,29 @@ void eval_cmd(command cmd) {
         redirect_output(cmd);
         return;
     } else if (special == 3) {
-        redirect_input(cmd);
+        redirect_input(&cmd);
         return;
     }
 
     if (!strcmp(cmd.args[0], "cd")) {
         cd_cmd(cmd);
+        return;
     } else if (!strcmp(cmd.args[0], "pwd")) {
+        if (DEBUG) printf("PWD");
         pwd_cmd(cmd);
+        return;
     } else if (!strcmp(cmd.args[0], "which")) {
+        if (DEBUG) printf("WHICH");
         which_cmd(cmd);
+        return;
     } else if (!strcmp (cmd.args[0], "exit")) {
+        if (DEBUG) printf("EXIT");
         exit_cmd(cmd);
+        return;
     } else {
+        if (DEBUG) printf("EXTERNAL");
         external_cmd(cmd);
+        return;
     }
 }
 
@@ -650,13 +650,30 @@ int main(int argc, char* argv[]) {
         }
 
         char* input = read_line();
-        
-        // Check if input is path to program
+        // check if input is path
         if (input[0] == '/') {
-            printf("path to program\n");
+            char path[BUFSIZE];
+            path[0] = '.';
+            strcat(path, input);
+            printf("%s\n", path);
+            command cmd = parse_cmd(input);
+            
+            int stat;
+            pid_t pid = fork();
+            if (pid == 1) {
+                perror("fork");
+                exit(EXIT_FAILURE);
+            }
+            
+            if (pid == 0) {
+                execv(path, cmd.args);
+                perror("execv");
+                exit(EXIT_FAILURE);
+            } 
+            waitpid(pid, &stat, 0);
+
             continue;
         }
-
         command cmd = parse_cmd(input);
         eval_cmd(cmd);
 

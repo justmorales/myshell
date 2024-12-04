@@ -2,11 +2,14 @@ echo --- PIPE TESTS ---
 echo
 cd test_cases
 echo Creating create1.txt and create2.txt using pipe functions
-touch create1.txt | touch create2.txt   
+touch create1.txt | touch create2.txt
+echo
 echo Removing create1.txt and create2.txt
 rm create1.txt | rm create2.txt
+echo
 echo Creating files again...
 touch create1.txt | touch create2.txt
+echo
 cd ..
 echo
 echo All lines in all .sh files which contain "echo" should output
